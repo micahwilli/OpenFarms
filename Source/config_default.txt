@@ -1,0 +1,44 @@
+[LAYERS]
+Parcel = TaxParcels
+LandUse = Landuse
+SoilType = Soils
+
+[FIELDS]
+ParcelID = PIN
+LandUse = Landuse
+SoilType = MUSYM
+UseDeeded = false
+DeededAcres = 
+
+[FLOOD_DEBASEMENT]
+UseFloodDebasement = false
+FloodDebasementLayer = 
+FloodDebasementField = 
+
+[OUTPUT]
+Folder = 
+WriteCSV = true
+WriteTXT = true
+WriteShapefile = false
+
+[SAVE]
+Overwrite = true
+SaveAs = 
+
+[HEADINGS]
+ParcelID = Parcel ID
+LandUse = Land Use
+SoilType = Soil Type
+Acres = Acres
+
+[LANDUSE_CODES]
+CR = 1
+PP = 2
+OF = 3
+CW = 4
+NCW = 5
+ROW = 6
+NA = 6
+HS = 7
+DEFAULT = X
+
