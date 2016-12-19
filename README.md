@@ -5,4 +5,9 @@ It takes your Existing Three layers: Land Use, Parcels and Soils and performs a 
 
 Please note: THIS TOOL DOES NO FARMLAND VALUATION. It simply performs the spatial analysis needed for Farmland assessment, all value calculations are done in your county CAMA system. 
 
-Kendall Knapp (Cloudpoint's Genius Intern) created this December 2016. We are available for customization and will support those customizations, however the base script is available AS IS. Cloudpoint Geographics, Kendall Knapp or Micah Williamson are NOT liable for any miscalculations of your data, use at your own risk.
+
+Most Users can simply download the "OpenFarms.esriaddin" and install it. Everything is packaged there. Those interested in the source code can see that as well. 
+
+
+
+Kendall Knapp (Cloudpoint's Genius Intern) created this December 2016. We are available for customization and will support those customizations, however the base script is available AS IS. Cloudpoint Geographics, Kendall or Micah Williamson (account owner) are NOT liable for any miscalculations of your data, use at your own risk.
