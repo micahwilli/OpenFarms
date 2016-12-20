@@ -19,7 +19,7 @@ class Toolbox(object):
         self.alias = ""
 
         # List of tool classes associated with this toolbox
-        self.tools = [OpenFarms,Settings]
+        self.tools = [OpenFields,Settings]
 
 
 class OpenFarms(object):
@@ -33,7 +33,7 @@ class OpenFarms(object):
     #Put class variables above, not in __init__
     def __init__(self):
         """Define the tool (tool name is the name of the class)."""
-        self.label = "OpenFarms"
+        self.label = "OpenFields"
         self.description = ""
         self.canRunInBackground = False
 
