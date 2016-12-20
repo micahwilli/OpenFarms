@@ -1,4 +1,4 @@
-# OpenFarms
+# OpenFields
 This is an ArcMap (10.1 - 10.4.1) Addon for Farmland Assessment in Illinois.
 
 ---__This project is owned by Cloudpoint Geographics Inc.__---
@@ -8,7 +8,7 @@ It takes your Existing Three layers: Land Use, Parcels and Soils and performs a 
 Please note: THIS TOOL DOES NO FARMLAND VALUATION. It simply performs the spatial analysis needed for Farmland assessment, all value calculations are done in your county CAMA system. 
 
 
-Most Users can simply download the "OpenFarms.esriaddin" and install it. Everything is packaged there. Those interested in the source code can see that as well. BUT you will have to re-compile your changes in order to make the ArcToolbox an add-on again. 
+Most Users can simply download the "OpenFields.esriaddin" and install it. Everything is packaged there. Those interested in the source code can see that as well. BUT you will have to re-compile your changes in order to make the ArcToolbox an add-on again. 
 
 
 
