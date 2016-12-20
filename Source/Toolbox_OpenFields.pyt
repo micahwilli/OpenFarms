@@ -8,7 +8,7 @@ import re
 import string
 import traceback
 
-#Two global variables: configFile_old_OpenFarms and configFile_old_Settings. Used to change parameters only if new config file is opened. Did not work as class variables.
+#Two global variables: configFile_old_OpenFields and configFile_old_Settings. Used to change parameters only if new config file is opened. Did not work as class variables.
 
 
 class Toolbox(object):
@@ -22,7 +22,7 @@ class Toolbox(object):
         self.tools = [OpenFields,Settings]
 
 
-class OpenFarms(object):
+class OpenFields(object):
 
     #p is a dictionary with class scope. The numbers are used as indexes for the parameters list. For example, parameters[self.p['OPEN_CONFIG']] is the same as parameters[0].
     #This was done to make modifying the parameters easier. If the order or number of parameters are changed, they need to be changed here AND in the getParameterInfo() method. getParameterInfo() initializes parameters, so it is separate from the other methods
@@ -38,7 +38,7 @@ class OpenFarms(object):
         self.canRunInBackground = False
 
     #THIS METHOD ONLY RUNS THE FIRST TIME THE TOOL IS OPENED UNTIL ARCMAP IS RESTARTED. Initial parameters from the config file need to be determined in updateParameters() because it runs every time the tool is opened.
-    #Otherwise, the settings tool will not affect OpenFarms until arcmap is restarted
+    #Otherwise, the settings tool will not affect OpenFields until arcmap is restarted
     #To create new parameter: enter new p# and add it to params list at end of method. The order in the params list is the display order, except for categories, which are alphabetical. ALSO modify p dictionary above.
     def getParameterInfo(self):
         """Define parameter definitions"""
@@ -134,7 +134,7 @@ class OpenFarms(object):
         """Modify the values and properties of parameters before internal
         validation is performed.  This method is called whenever a parameter
         has been changed."""
-        global configFile_old_OpenFarms
+        global configFile_old_OpenFields
         #This if statement will only be true when the tool is first opened, because OPEN_CONIFG is given a value inside it. Used for reading last used settings
         if (not parameters[self.p['OPEN_CONFIG']].value) and ( not parameters[self.p['OPEN_CONFIG']].altered):
             configFile_location = os.path.join(os.path.dirname(__file__),'config_location.txt') #Path to location config file that contains path to main config. Must be in same folder as toolbox
@@ -153,13 +153,13 @@ class OpenFarms(object):
                     config.write(configfile)
                 parameters[self.p['OPEN_CONFIG']].value = config_path
 
-            configFile_old_OpenFarms = parameters[self.p['OPEN_CONFIG']].valueAsText    #Remember current config file to decide if value changes later
+            configFile_old_OpenFields = parameters[self.p['OPEN_CONFIG']].valueAsText    #Remember current config file to decide if value changes later
             self.ReadConfig(parameters[self.p['OPEN_CONFIG']].valueAsText,parameters)   #Method that reads the config file, defined below. Different for each class.
 
         #Read config file if user has changed OPEN_CONFIG parameter. Altered property does not help because it remains true after being changed once
-        if configFile_old_OpenFarms != parameters[self.p['OPEN_CONFIG']].valueAsText:
+        if configFile_old_OpenFields != parameters[self.p['OPEN_CONFIG']].valueAsText:
            self.ReadConfig(parameters[self.p['OPEN_CONFIG']].valueAsText,parameters)
-           configFile_old_OpenFarms = parameters[self.p['OPEN_CONFIG']].valueAsText
+           configFile_old_OpenFields = parameters[self.p['OPEN_CONFIG']].valueAsText
 
         return
 
@@ -358,13 +358,6 @@ class OpenFarms(object):
             #Get rid of unwanted fields
             arcpy.FeatureClassToFeatureClass_conversion(outAllFields,"in_memory","Final",field_mapping=fms)
 
-            #Test for overlap
-            arcpy.Intersect_analysis(outFinal,outOverlap)  #Final output is intersected with itself. Only overlapping areas will be in outOverlap
-            result = arcpy.GetCount_management(outOverlap)
-            count = int(result.getOutput(0))
-            if count != 0:
-                arcpy.AddWarning('Result contains overlapping polygons. Make sure there is no overlap in input layers.')
-
             #Always include GIS acreage in shapefile output. It will only be used in TXT and CSV if neither GIS acreage nor Deeded acreage is selected
             arcpy.AddField_management(outFinal,field_gis_acreage_output,'Double')         #Area in acres will be stored here
             arcpy.CalculateField_management(outFinal,field_gis_acreage_output,'!SHAPE.area@ACRES!','PYTHON')
@@ -516,12 +509,19 @@ class OpenFarms(object):
                         arcpy.AddWarning('Shapefile could not be added to map. Please add manually.')
                         self.PrintError()
             except:
-                arcpy.AddWarning('Shapfile failed to write.')
+                arcpy.AddWarning('Shapefile failed to write.')
                 self.PrintError()
 
             #Check if no outputs were selected
             if bool_csv == 'false' and bool_txt == 'false' and bool_shapefile == 'false':
                 arcpy.AddWarning('No output type was selected, so no output files were written. Select at least one output type in Settings tool')
+
+            #Test for overlap
+            arcpy.Intersect_analysis(outFinal,outOverlap)  #Final output is intersected with itself. Only overlapping areas will be in outOverlap
+            result = arcpy.GetCount_management(outOverlap)
+            count = int(result.getOutput(0))
+            if count != 0:
+                arcpy.AddWarning('Result contains {0} overlapping polygons. Make sure there is no overlap in input layers.'.format(count))
 
         except:
             self.PrintError()
@@ -593,7 +593,7 @@ class Settings(object):
         self.canRunInBackground = False
 
     #THIS METHOD ONLY RUNS THE FIRST TIME THE TOOL IS OPENED UNTIL ARCMAP IS RESTARTED. Initial parameters from the config file need to be determined in updateParameters() because it runs every time the tool is opened.
-    #Otherwise, the settings tool will not affect OpenFarms until arcmap is restarted
+    #Otherwise, the settings tool will not affect OpenFields until arcmap is restarted
     #To create new parameter: enter new p# and add it to params list at end of method. The order in the params list is the display order, except for categories, which are alphabetical. ALSO modify p dictionary above.
     def getParameterInfo(self):
         """Define parameter definitions"""
@@ -777,7 +777,7 @@ class Settings(object):
 
         try:    #does not work with 10.2
             p19.filters[0].type = 'ValueList'
-            p19.filters[0].list = ['ParcelID','LandUse','SoilType','Acres'] #Only config file options are selectable. Otherwise, someone could create more than 4 headings, which will revert to default values in OpenFarms
+            p19.filters[0].list = ['ParcelID','LandUse','SoilType','Acres'] #Only config file options are selectable. Otherwise, someone could create more than 4 headings, which will revert to default values in OpenFields
         except: pass
 
         params = [p0,p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,p11,p12,p13,p14,p15,p16,p17,p18,p19]    #Don't forget to add parameters here!
