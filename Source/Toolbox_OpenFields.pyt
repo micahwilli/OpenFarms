@@ -477,8 +477,7 @@ class OpenFields(object):
                         if bool_use_flood == 'true' and flood_layer and flood_field:    #needs to be checked again, or else row[4] will not exist
                             flood_multiplier = row[4]
 
-                        textFile.write('{:<7} {:<7} {:<7} {:<15} {:<7} {:<7}'.format(soilType_split[0], soilType_split[1], code_land_use, Parcel_ID_number, acres, flood_multiplier))  #increase numbers to add more spaces for large values
-                        textFile.write('\r\n')
+                        textFile.write('{}\t{}\t{}\t{}\t{}\t{}\n'.format(soilType_split[0], soilType_split[1], code_land_use, Parcel_ID_number, acres, flood_multiplier))  #increase numbers to add more spaces for large values
 
                     textFile.close()
                 except:
