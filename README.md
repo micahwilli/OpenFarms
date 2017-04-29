@@ -11,5 +11,6 @@ Please note: THIS TOOL DOES NO FARMLAND VALUATION. It simply performs the spatia
 Most Users can simply download the "OpenFields.esriaddin" and install it. Everything is packaged there. Those interested in the source code can see that as well. BUT you will have to re-compile your changes in order to make the ArcToolbox an add-on again. 
 
 
+It is important that you run the settings the first time you use the tool and after each upgrade. There are new options being added, including a Summary .csv. It was a requested bonus that Kendall was able to put in before he left us. 
 
 Kendall Knapp (Cloudpoint's Genius Intern) created this December 2016. We are available for customization and will support those customizations, however the base script is available AS IS. Cloudpoint Geographics, Kendall or Micah Williamson (account owner) are NOT liable for any miscalculations of your data, use at your own risk.
