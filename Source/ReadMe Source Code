@@ -1,7 +1,9 @@
-This Folder contains the Source Code for the OpenFields Addon Project. 
+This Folder contains the Source Code for the OpenFields ArcMap Addin Project. 
 
 If you are simply looking for the Addon- navigate up one folder and 
 install the "OpenFields.esriaddin" on your desktop.
+
+If you really want the Python. It's the .pyt file. 
 
 If you do not have ArcMap, you're lost and should leave here now. 
 
