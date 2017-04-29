@@ -258,6 +258,8 @@ class OpenFields(object):
 
             field_gis_acreage_output = 'GISAcreage'  #created for shapefile result
             field_deeded_acreage_output = 'DeededAcre'  #Note: can't add field alias to shapefile. Only first 10 characters will appear in name
+            field_ratio = 'Ratio'   #Deeded acres / GIS acres
+            SQUAREFT_TO_ACRES = .0000229568336506
 
             arcpy.CopyFeatures_management(inParcels,inParcels_inmemory) #Use in_memory for faster geoprocessing. Copying soil and land use will not be faster because of large size (only selected parcels are copied).
 
@@ -269,7 +271,10 @@ class OpenFields(object):
             flood_field = ''
             bool_csv = 'true'
             bool_txt = 'true'
-            headings_csv = ['ParcelID','Parcel ID','LandUse','Land Use','SoilType','Soil Type','Acres','Acres']         #[option,value,option,value, etc.] Options only needed if config file is used.
+            RoundAcres = 2
+            RoundRatio = 4
+            BaseAcres = .01
+            headings_csv = ['ParcelID','Parcel ID','LandUse','Land Use','SoilType','Soil Type','Acres','Acres','Ratio','Ratio','DeededAcres','Deeded Acres']         #[option,value,option,value, etc.] Options only needed if config file is used.
             land_use_codes = ['CR','1','PP','2','OF','3','CW','4','NCW','5','ROW','6','NA','6','HS','7','DEFAULT','X']  #[field_value,output_code,field_value,output_code, etc.]
 
             #Read config file
@@ -292,8 +297,12 @@ class OpenFields(object):
                     arcpy.AddWarning('FLOOD_DEBASEMENT section did not load correctly from config file. Using default values')
                 try:
                     bool_csv = config.get('OUTPUT','WriteCSV')
+                    bool_summary_csv = config.get('OUTPUT','WriteSummaryCSV')
                     bool_txt = config.get('OUTPUT','WriteTXT')
                     bool_shapefile = config.get('OUTPUT','WriteShapefile')
+                    RoundAcres = int(config.get('OUTPUT','RoundAcres'))
+                    RoundRatio = int(config.get('OUTPUT','RoundRatio'))
+                    BaseAcres = float(config.get('OUTPUT','BaseAcres'))
                 except:
                     arcpy.AddWarning('OUTPUT section did not load correctly from config file. Using default values')
                 try:
@@ -316,10 +325,11 @@ class OpenFields(object):
 
             #Create file paths from folder and base file name
             outCSV = os.path.join(outFolder, fileName + '.csv')
+            outSummaryCSV = os.path.join(outFolder, fileName + '_summary' + '.csv')
             outTXT = os.path.join(outFolder, fileName + '.txt')
 
             #Second check to see if no parcels are selected. Not really necessary, but helps if someone missed the first warning and is getting angry.
-            try:
+            try: #Might fail in ArcGIS 10.2
                 desc=arcpy.Describe(inParcels)
                 if desc.FIDSet=='':             #if selection is null
                     arcpy.AddWarning('Warning: No parcels are selected. Process will be run for all parcels.')
@@ -367,37 +377,41 @@ class OpenFields(object):
             if manual_acreage:    #OVERRIDES deeded acres field if manual acreage is given
                 arcpy.AddMessage('Using manual acreage...')
                 arcpy.AddField_management(outFinal,field_deeded_acreage_output,'Double')         #Area in acres will be stored here
+                arcpy.AddField_management(outFinal,field_ratio,'Double')
                 field_area = field_deeded_acreage_output
 
                 cursor = arcpy.da.SearchCursor(inParcels_inmemory, [field_parcel_ID,'SHAPE@AREA'])
                 area_ratio_dict = {}    #initialize empty dictionary
                 for row in cursor:
                     if row[1] !=  0:    #check for divide by zero
-                        area_ratio_dict[row[0]] = manual_acreage/row[1]
+                        area_ratio_dict[row[0]] = manual_acreage/(row[1]*SQUAREFT_TO_ACRES)
                     else:
                         area_ratio_dict[row[0]] = 0
                         arcpy.AddError('Area of parcel cannot be 0')
                         raise arcpy.ExecuteError    #stop execution
-                cursor = arcpy.da.UpdateCursor(outFinal, [field_parcel_ID,field_deeded_acreage_output,'SHAPE@AREA'])
+                cursor = arcpy.da.UpdateCursor(outFinal, [field_parcel_ID,field_deeded_acreage_output,'SHAPE@AREA',field_ratio])
                 for row in cursor:
-                    row[1] = area_ratio_dict[row[0]] * row[2]       #result is in acres
+                    row[1] = area_ratio_dict[row[0]] * (row[2]*SQUAREFT_TO_ACRES)       #result is in acres
+                    row[3] = area_ratio_dict[row[0]]                #ratio
                     cursor.updateRow(row)
             elif (bool_use_deeded == 'true' and field_deeded_acres):    #Deeded acreage field given in Settings tool
                 arcpy.AddMessage('Using deeded acreage field...')
                 arcpy.AddField_management(outFinal,field_deeded_acreage_output,'Double')         #Area in acres will be stored here
+                arcpy.AddField_management(outFinal,field_ratio,'Double')
                 field_area = field_deeded_acreage_output
 
                 cursor = arcpy.da.SearchCursor(inParcels_inmemory, [field_parcel_ID,field_deeded_acres,'SHAPE@AREA'])
                 area_ratio_dict = {}
                 for row in cursor:
                     if row[1] is not None:  #checks if value has been entered in deeded acres field
-                        area_ratio_dict[row[0]] = row[1]/row[2]     #acres/ft^2
+                        area_ratio_dict[row[0]] = row[1]/(row[2]*SQUAREFT_TO_ACRES)     #acres/(ft^2 * conversion to acres)
                     else:
-                        area_ratio_dict[row[0]] = .0000229568336506 #ft^2 to acres conversion factor for below. Gives GIS acreage if no deeded acreage is available.
+                        area_ratio_dict[row[0]] = 1 #Use GIS acreage if no deeded acreage is available.
                         arcpy.AddWarning('No Deeded Acreage given for {0}. Using GIS Acreage instead.'.format(row[0]))
-                cursor = arcpy.da.UpdateCursor(outFinal, [field_parcel_ID,field_deeded_acreage_output,'SHAPE@AREA'])
+                cursor = arcpy.da.UpdateCursor(outFinal, [field_parcel_ID,field_deeded_acreage_output,'SHAPE@AREA',field_ratio])
                 for row in cursor:
-                    row[1] = area_ratio_dict[row[0]] * row[2]       #result is in acres
+                    row[1] = area_ratio_dict[row[0]] * (row[2]*SQUAREFT_TO_ACRES)       #result is in acres
+                    row[3] = area_ratio_dict[row[0]]                #ratio
                     cursor.updateRow(row)
             else:   #Use GIS acreage
                 arcpy.AddMessage('Using GIS acreage...')
@@ -413,6 +427,47 @@ class OpenFields(object):
                         row[0] = 1.00
                     cursor.updateRow(row)
 
+            #Create dictionary for use with CSV and Summary CSV
+            if bool_csv == 'true' or bool_summary_csv == 'true':
+                #If deeded or manual acreage is not given, omit from output
+                if not (manual_acreage or (bool_use_deeded == 'true' and field_deeded_acres)):
+                    field_ratio = field_gis_acreage_output
+                    field_deeded_acreage_output = field_gis_acreage_output
+
+                ParcelID_dict = collections.OrderedDict()
+
+                cursor = arcpy.da.SearchCursor(outFinal, [field_parcel_ID,field_land_use,field_soil_type,field_gis_acreage_output,field_ratio,field_deeded_acreage_output])
+                for row in cursor:
+                    acres = round(row[3],RoundAcres) #rounded to 2 decimal places
+                    if acres == 0:
+                        acres = BaseAcres    #Set bottom value at .01 acres
+                    if manual_acreage or (bool_use_deeded == 'true' and field_deeded_acres):
+                        ratio = round(row[4],RoundRatio)
+                        deeded_acres = round(row[5],RoundAcres) #rounded to 2 decimal places
+                        if deeded_acres == 0:
+                            deeded_acres = BaseAcres    #Set bottom value at .01 acres
+                    else:   #If deeded or manual acreage is not given, omit from output
+                        ratio = ''
+                        deeded_acres = ''
+
+                    #Add to dictionary
+                    if row[0] in ParcelID_dict:
+                        if row[1] in ParcelID_dict[row[0]][0]:
+                            if row[2] in ParcelID_dict[row[0]][0][row[1]]:
+                                ParcelID_dict[row[0]][0][row[1]][row[2]][0] += acres
+                                if manual_acreage or (bool_use_deeded == 'true' and field_deeded_acres):    #There will be an error if a character is incremented
+                                    ParcelID_dict[row[0]][0][row[1]][row[2]][1] += deeded_acres
+                            else:
+                                ParcelID_dict[row[0]][0][row[1]][row[2]] = [acres,deeded_acres]
+                        else:
+                            ParcelID_dict[row[0]][0][row[1]] = collections.OrderedDict()
+                            ParcelID_dict[row[0]][0][row[1]][row[2]] = [acres,deeded_acres]
+                    else:
+                        ParcelID_dict[row[0]] = [collections.OrderedDict(), '']
+                        ParcelID_dict[row[0]][0][row[1]] = collections.OrderedDict()
+                        ParcelID_dict[row[0]][0][row[1]][row[2]] = [acres,deeded_acres]
+                        ParcelID_dict[row[0]][1] = ratio
+
             #Write to CSV
             #Values for bool_csv and bool_txt are strings: 'true' and 'false', they are NOT bool values. This is because they are read from the config file.
             if bool_csv == 'true':
@@ -422,14 +477,50 @@ class OpenFields(object):
                         csvWriter = csv.writer(csvFile, delimiter=',',lineterminator='\r\n')
                         csvWriter.writerow(headings_csv[1::2])  #skip config file option names
 
-                        cursor = arcpy.da.SearchCursor(outFinal, [field_parcel_ID,field_land_use,field_soil_type,field_area])
-                        for row in cursor:
-                            acres = round(row[3],2) #rounded to 2 decimal places
-                            if acres == 0:
-                                acres = 0.01    #Set bottom value at .01 acres
-                            csvWriter.writerow([row[0], row[1], row[2], acres]) #changing the order of the headings will not change the order of the values
+                        for ParcelID, item1 in sorted(ParcelID_dict.iteritems()):
+                            for Landuse in sorted(ParcelID_dict[ParcelID][0].iterkeys()):
+                                for soilType, item2 in sorted(ParcelID_dict[ParcelID][0][Landuse].iteritems()):
+                                    csvWriter.writerow([ParcelID,Landuse,soilType,item2[0],item1[1],item2[1]])
                 except:
                         arcpy.AddError('CSV failed to write. Make sure CSV file is not open and file name is valid.')
+                        self.PrintError()
+
+            #Write Summary CSV: Gives totals for each parcel and landuse
+            if bool_summary_csv == 'true':
+                arcpy.AddMessage('Writing Summary CSV...')
+                try:
+                    with open(outSummaryCSV, 'wb') as csvFile:
+                        csvWriter = csv.writer(csvFile, delimiter=',',lineterminator='\r\n')
+                        csvWriter.writerow(headings_csv[1::2])  #skip config file option names
+
+                        for ParcelID, item in sorted(ParcelID_dict.iteritems()):
+                            sum_Parcel_acres = 0
+                            if manual_acreage or (bool_use_deeded == 'true' and field_deeded_acres):
+                                sum_Parcel_deeded_acres = 0
+                            else:
+                                sum_Parcel_deeded_acres = ''
+                            csvWriter.writerow([ParcelID,'','','',item[1]])
+
+                            for Landuse in sorted(ParcelID_dict[ParcelID][0].iterkeys()):
+                                sum_Landuse_acres = 0
+                                if manual_acreage or (bool_use_deeded == 'true' and field_deeded_acres):
+                                    sum_Landuse_deeded_acres = 0
+                                else:
+                                    sum_Landuse_deeded_acres = ''
+                                csvWriter.writerow(['',Landuse])
+                                for soilType, item in sorted(ParcelID_dict[ParcelID][0][Landuse].iteritems()):
+                                    csvWriter.writerow(['','',soilType,item[0],'',item[1]])
+                                    sum_Landuse_acres += item[0]
+                                    sum_Parcel_acres += item[0]
+                                    if manual_acreage or (bool_use_deeded == 'true' and field_deeded_acres):
+                                        sum_Landuse_deeded_acres += item[1]
+                                        sum_Parcel_deeded_acres += item[1]
+                                csvWriter.writerow(['',str(Landuse) + ' Total','',sum_Landuse_acres,'',sum_Landuse_deeded_acres])
+
+                            csvWriter.writerow([str(ParcelID) + ' Total','','',sum_Parcel_acres,'',sum_Parcel_deeded_acres])
+
+                except:
+                        arcpy.AddError('Summary CSV failed to write. Make sure CSV file is not open and file name is valid.')
                         self.PrintError()
 
             #Write to TXT
@@ -447,9 +538,9 @@ class OpenFields(object):
 
                     for row in cursor:
                         #Acres
-                        acres = round(row[3],2)
+                        acres = round(row[3],RoundAcres)
                         if acres == 0:
-                            acres = 0.01    #Set bottom value at .01 acres
+                            acres = BaseAcres    #Set bottom value at .01 acres
 
                         #Parcel ID
                         row0_string = str(row[0])       #makes translate work for string or number
@@ -583,7 +674,7 @@ class Settings(object):
     #This was done to make modifying the parameters easier. If the order or number of parameters are changed, they need to be changed here AND in the getParameterInfo() method. getParameterInfo() initializes parameters, so it is separate from the other methods
     #0 should correspond to p0, 1 to p1, etc.
     p= {'OPEN_CONFIG':0,'PARCEL_LAYER':1, 'LANDUSE_LAYER':2,'SOIL_LAYER':3,'PARCEL_ID_FIELD':4,'LANDUSE_FIELD':5,'SOIL_FIELD':6,'BOOL_DEEDED':7,'DEEDED_FIELD':8,'BOOL_FLOOD':9,'FLOOD_LAYER':10,'FLOOD_FIELD':11,'OUTPUT_FOLDER':12,\
-        'OUTPUT_CSV':13,'OUTPUT_TXT':14, 'OUTPUT_SHAPE':15, 'OVERWRITE_CONFIG':16,'SAVE_AS':17,'LANDUSE_CODES':18,'CSV_HEADINGS':19}
+        'OUTPUT_CSV':13, 'OUTPUT_SUMMARY_CSV':14, 'OUTPUT_TXT':15, 'OUTPUT_SHAPE':16, 'ROUND_ACRES':17,'ROUND_RATIO':18, 'BASE_ACRES':19, 'OVERWRITE_CONFIG':20,'SAVE_AS':21,'LANDUSE_CODES':22,'CSV_HEADINGS':23}
     read_config_error = False
     def __init__(self):
         """Define the tool (tool name is the name of the class)."""
@@ -720,9 +811,16 @@ class Settings(object):
             parameterType = 'Optional',
             direction = 'Input',
             category = '3 - Output')
-        p13.value = True
 
         p14 = arcpy.Parameter(
+            displayName = 'Output Summary .csv',
+            name = 'output_summary_csv',
+            datatype = 'GPBoolean',
+            parameterType = 'Optional',
+            direction = 'Input',
+            category = '3 - Output')
+
+        p15 = arcpy.Parameter(
             displayName = 'Output .txt',
             name = 'output_txt',
             datatype = 'GPBoolean',
@@ -730,7 +828,7 @@ class Settings(object):
             direction = 'Input',
             category = '3 - Output')
 
-        p15 = arcpy.Parameter(
+        p16 = arcpy.Parameter(
             displayName = 'Output Shapefile',
             name = 'output_shapefile',
             datatype = 'GPBoolean',
@@ -738,7 +836,31 @@ class Settings(object):
             direction = 'Input',
             category = '3 - Output')
 
-        p16 = arcpy.Parameter(
+        p17 = arcpy.Parameter(
+            displayName = 'Round Acres - Number of decimal places to round acres to:',
+            name = 'round_acres',
+            datatype = 'GPLong',
+            parameterType = 'Required',
+            direction = 'Input',
+            category = '3 - Output')
+
+        p18 = arcpy.Parameter(
+            displayName = 'Round Ratio - Number of decimal places to round ratio to:',
+            name = 'round_ratio',
+            datatype = 'GPLong',
+            parameterType = 'Required',
+            direction = 'Input',
+            category = '3 - Output')
+
+        p19 = arcpy.Parameter(
+            displayName = 'Base Acres - If small area would be rounded down to 0, it will instead be this number:',
+            name = 'base_acres',
+            datatype = 'GPDouble',
+            parameterType = 'Required',
+            direction = 'Input',
+            category = '3 - Output')
+
+        p20 = arcpy.Parameter(
             displayName = 'Use Input Config (Overwrite)',
             name = 'overwrite_input_config',
             datatype = 'GPBoolean',
@@ -746,7 +868,7 @@ class Settings(object):
             direction = 'Input',
             category = '4 - Save Config File')
 
-        p17 = arcpy.Parameter(
+        p21 = arcpy.Parameter(
             displayName = 'Save As',
             name = 'save_as',
             datatype = 'DETextfile',
@@ -755,31 +877,30 @@ class Settings(object):
             category = '4 - Save Config File')
 
         #Multi value table
-        p18 = arcpy.Parameter(
+        p22 = arcpy.Parameter(
             displayName = 'Land Use Codes',
             name = 'landUseCodes',
             datatype = 'GPValueTable',
             parameterType = 'Optional',
             direction = 'Input',
             category ='5 - Land Use Codes')
-        p18.columns = [['GPString', 'Land Use Field'],['GPString', 'Numeric Code for export']]  #[[Type,Name],[Type,Name]]
-
+        p22.columns = [['GPString', 'Land Use Field'],['GPString', 'Numeric Code for export']]  #[[Type,Name],[Type,Name]]
         #Multi value table
-        p19 = arcpy.Parameter(
+        p23 = arcpy.Parameter(
             displayName = 'CSV Headings',
             name = 'csv_headings',
             datatype = 'GPValueTable',
             parameterType = 'Optional',
             direction = 'Input',
             category = '6 - CSV Headings')
-        p19.columns = [['GPString', 'Column'],['GPString', 'Heading']]
+        p23.columns = [['GPString', 'Column'],['GPString', 'Heading']]
 
         try:    #does not work with 10.2
-            p19.filters[0].type = 'ValueList'
-            p19.filters[0].list = ['ParcelID','LandUse','SoilType','Acres'] #Only config file options are selectable. Otherwise, someone could create more than 4 headings, which will revert to default values in OpenFields
+            p23.filters[0].type = 'ValueList'
+            p23.filters[0].list = ['ParcelID','LandUse','SoilType','Acres','Ratio','DeededAcres'] #Only config file options are selectable. Otherwise, someone could create more than 4 headings, which will revert to default values in OpenFields
         except: pass
 
-        params = [p0,p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,p11,p12,p13,p14,p15,p16,p17,p18,p19]    #Don't forget to add parameters here!
+        params = [p0,p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,p11,p12,p13,p14,p15,p16,p17,p18,p19,p20,p21,p22,p23]    #Don't forget to add parameters here!
 
         return params
 
@@ -900,12 +1021,12 @@ class Settings(object):
                 self.PrintError()
                 raise arcpy.ExecuteError
 
-            #Dictionary of lists. Used to easily organization information before writing to config file. Each key is a section of the config file. The lists are [option,value,option,value, etc.]
+            #Dictionary of lists. Used to easily organize information before writing to config file. Each key is a section of the config file. The lists are [option,value,option,value, etc.]
             param_dict = collections.OrderedDict()  #The keys will be in the same order they are initialized in (determines order in config file)
             param_dict['LAYERS'] = ['Parcel',parameters[self.p['PARCEL_LAYER']].valueAsText,'LandUse',parameters[self.p['LANDUSE_LAYER']].valueAsText,'SoilType',parameters[self.p['SOIL_LAYER']].valueAsText]
             param_dict['FIELDS'] = ['ParcelID',parameters[self.p['PARCEL_ID_FIELD']].valueAsText,'LandUse',parameters[self.p['LANDUSE_FIELD']].valueAsText,'SoilType',parameters[self.p['SOIL_FIELD']].valueAsText,'UseDeeded',parameters[self.p['BOOL_DEEDED']].valueAsText,'DeededAcres',parameters[self.p['DEEDED_FIELD']].valueAsText]
             param_dict['FLOOD_DEBASEMENT']  = ['UseFloodDebasement',parameters[self.p['BOOL_FLOOD']].valueAsText,'FloodDebasementLayer',parameters[self.p['FLOOD_LAYER']].valueAsText,'FloodDebasementField',parameters[self.p['FLOOD_FIELD']].valueAsText]
-            param_dict['OUTPUT'] = ['Folder',parameters[self.p['OUTPUT_FOLDER']].valueAsText,'WriteCSV',parameters[self.p['OUTPUT_CSV']].valueAsText,'WriteTXT',parameters[self.p['OUTPUT_TXT']].valueAsText,'WriteShapefile',parameters[self.p['OUTPUT_SHAPE']].valueAsText]
+            param_dict['OUTPUT'] = ['Folder',parameters[self.p['OUTPUT_FOLDER']].valueAsText,'WriteCSV',parameters[self.p['OUTPUT_CSV']].valueAsText,'WriteSummaryCSV',parameters[self.p['OUTPUT_SUMMARY_CSV']].valueAsText,'WriteTXT',parameters[self.p['OUTPUT_TXT']].valueAsText,'WriteShapefile',parameters[self.p['OUTPUT_SHAPE']].valueAsText,'RoundAcres',parameters[self.p['ROUND_ACRES']].valueAsText,'RoundRatio',parameters[self.p['ROUND_RATIO']].valueAsText,'BaseAcres',parameters[self.p['BASE_ACRES']].valueAsText]
             param_dict['SAVE']   = ['Overwrite',parameters[self.p['OVERWRITE_CONFIG']].valueAsText,'SaveAs',parameters[self.p['SAVE_AS']].valueAsText]
             param_dict['HEADINGS'] = list(itertools.chain(*parameters[self.p['CSV_HEADINGS']].value))   #results in same format as other lists in this dictionary
             param_dict['LANDUSE_CODES'] = list(itertools.chain(*parameters[self.p['LANDUSE_CODES']].value))
@@ -1007,10 +1128,22 @@ class Settings(object):
             parameters[self.p['OUTPUT_CSV']].value = config.get('OUTPUT', 'WriteCSV')
         except: pass
         try:
+            parameters[self.p['OUTPUT_SUMMARY_CSV']].value = config.get('OUTPUT', 'WriteSummaryCSV')
+        except: pass
+        try:
             parameters[self.p['OUTPUT_TXT']].value = config.get('OUTPUT', 'WriteTXT')
         except: pass
         try:
             parameters[self.p['OUTPUT_SHAPE']].value = config.get('OUTPUT', 'WriteShapefile')
+        except: pass
+        try:
+            parameters[self.p['ROUND_ACRES']].value = config.get('OUTPUT', 'RoundAcres')
+        except: pass
+        try:
+            parameters[self.p['ROUND_RATIO']].value = config.get('OUTPUT', 'RoundRatio')
+        except: pass
+        try:
+            parameters[self.p['BASE_ACRES']].value = config.get('OUTPUT', 'BaseAcres')
         except: pass
         try:
             parameters[self.p['OVERWRITE_CONFIG']].value = config.get('SAVE', 'Overwrite')

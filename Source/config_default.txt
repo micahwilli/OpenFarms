@@ -17,9 +17,13 @@ FloodDebasementField =
 
 [OUTPUT]
 Folder = 
-WriteCSV = true
+WriteCSV = false
+WriteSummaryCSV = true
 WriteTXT = true
 WriteShapefile = false
+RoundAcres = 2
+RoundRatio = 4
+BaseAcres = 0.01
 
 [SAVE]
 Overwrite = true
@@ -29,7 +33,9 @@ SaveAs =
 ParcelID = Parcel ID
 LandUse = Land Use
 SoilType = Soil Type
-Acres = Acres
+Acres = GIS Acres
+Ratio = Ratio
+DeededAcres = Deeded Acres
 
 [LANDUSE_CODES]
 CR = 1
