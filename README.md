@@ -1,5 +1,5 @@
 # OpenFields
-This is an ArcMap (10.1 - 10.5) Addon for Farmland Assessment in Illinois.
+This is an ArcMap (10.1 - 10.6) Addon for Farmland Assessment in Illinois.
 
 --__This project is owned by Cloudpoint Geographics Inc.__---
 
